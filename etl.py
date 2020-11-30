@@ -4,6 +4,8 @@ import psycopg2 as psy
 import os
 
 from neo4j import GraphDatabase
+from io import StringIO
+from datetime import datetime
 
 # Credentials from data source and data target
 user_redshift = os.environ['USER_REDSHIFT']
@@ -18,8 +20,10 @@ dbname_neo4j = os.environ['DBNAME_NEO4J']
 aws_access_key = os.environ['AWS_ACCESS_KEY']
 aws_secret_key = os.environ['AWS_SECRET_KEY']
 
-# Query path files
-extract_query = 'cypher-queries/extract-query.txt'
+# Paths files
+extract_query = extract_query
+path_s3 = path_s3
+bucket_name = bucket_name
 
 
 class RedshiftConnection(object):
@@ -76,7 +80,7 @@ class DbNeo4jConnection(object):
         # make a database connection and return it
         self.neo_conn = Neo4jConnection(uri=host_neo4j,
                                         user=user_neo4j,
-                                        pwd=user_neo4j)
+                                        pwd=password_neo4j)
 
         return self.neo_conn
 
@@ -99,7 +103,21 @@ def extract(path_query, db_name=None):
     return df_result
 
 
-def create_csv_file():
-    pass
+def create_csv_file(df, aws_access_key, aws_secret_key, bucket, path_file_s3):
+    s3 = boto3.client('s3', aws_access_key_id=aws_access_key, aws_secret_access_key=aws_secret_key)
+    csv_buf = StringIO()
+    df.to_csv(csv_buf, header=True, index=False)
+    csv_buf.seek(0)
+    data = datetime.today()
+    data = data.strftime('%Y%m%d')
+    filepaths3 = path_file_s3.format(data)
+    s3.put_object(Bucket=bucket, Body=csv_buf.getvalue(), Key=filepaths3)
 
 
+def main():
+    df = extract(extract_query, dbname_neo4j)
+    create_csv_file(df, aws_access_key, aws_secret_key, bucket_name, path_s3)
+
+
+if __name__ == '__main__':
+    main()

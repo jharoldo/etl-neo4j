@@ -8,7 +8,7 @@ boto3 = "*"
 pandas = "*"
 neo4j = "*"
 psycopg2 = "*"
-numpy = "*"
+numpy = "==1.19.3"
 
 [dev-packages]
 
