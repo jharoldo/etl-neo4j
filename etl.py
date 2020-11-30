@@ -1,19 +1,36 @@
 import pandas as pd
 import boto3
 import psycopg2 as psy
+import os
 
 from neo4j import GraphDatabase
+
+# Credentials from data source and data target
+user_redshift = os.environ['USER_REDSHIFT']
+password_redshift = os.environ['PASSWORD_REDSHIFT']
+dbname_redshift = os.environ['DBNAME_REDSHIFT']
+host_redshift = os.environ['HOST_REDSHIFT']
+port_redshift = os.environ['PORT_REDSHIFT']
+host_neo4j = os.environ['HOST_NEO4J']
+user_neo4j = os.environ['USER_NEO4J']
+password_neo4j = os.environ['PASSWORD_NEO4J']
+dbname_neo4j = os.environ['DBNAME_NEO4J']
+aws_access_key = os.environ['AWS_ACCESS_KEY']
+aws_secret_key = os.environ['AWS_SECRET_KEY']
+
+# Query path files
+extract_query = 'cypher-queries/extract-query.txt'
 
 
 class RedshiftConnection(object):
 
     def __enter__(self):
         # make a database connection and return it
-        self.sql_conn = psy.connect(user=user,
-                                    password=password,
-                                    dbname=dbname,
-                                    host=host,
-                                    port=port)
+        self.sql_conn = psy.connect(user=user_redshift,
+                                    password=password_redshift,
+                                    dbname=dbname_redshift,
+                                    host=host_redshift,
+                                    port=port_redshift)
 
         return self.sql_conn
 
@@ -57,9 +74,9 @@ class DbNeo4jConnection(object):
 
     def __enter__(self):
         # make a database connection and return it
-        self.neo_conn = Neo4jConnection(uri="bolt://localhost:7687",
-                                        user="superman",
-                                        pwd="pizza")
+        self.neo_conn = Neo4jConnection(uri=host_neo4j,
+                                        user=user_neo4j,
+                                        pwd=user_neo4j)
 
         return self.neo_conn
 
@@ -74,9 +91,15 @@ def openfile(filepath):
     return file_content
 
 
-def extract():
-    pass
+def extract(path_query, db_name=None):
+    extract_query_str = openfile(path_query)
+    with DbNeo4jConnection() as neo_conn:
+        result = neo_conn.query(extract_query_str, db=db_name)
+    df_result = pd.DataFrame([dict(_) for _ in result])
+    return df_result
 
 
 def create_csv_file():
     pass
+
+
