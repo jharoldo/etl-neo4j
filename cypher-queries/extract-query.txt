@@ -1,0 +1,6 @@
+MATCH
+	(n:Movie)
+RETURN
+      n.title    as movie_title
+    , n.released as relesead
+    , n.tagline  as tagline;
