@@ -6,9 +6,9 @@ name = "pypi"
 [packages]
 boto3 = "*"
 pandas = "*"
-neo4j = "*"
 psycopg2 = "*"
 numpy = "==1.19.3"
+py2neo = "*"
 
 [dev-packages]
 

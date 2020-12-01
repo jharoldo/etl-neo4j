@@ -3,7 +3,7 @@ import boto3
 import psycopg2 as psy
 import os
 
-from neo4j import GraphDatabase
+import py2neo
 from io import StringIO
 from datetime import datetime
 
@@ -21,9 +21,9 @@ aws_access_key = os.environ['AWS_ACCESS_KEY']
 aws_secret_key = os.environ['AWS_SECRET_KEY']
 
 # Paths files
-extract_query = extract_query
-path_s3 = path_s3
-bucket_name = bucket_name
+extract_query = ''
+path_s3 = ''
+bucket_name = ''
 
 
 class RedshiftConnection(object):
@@ -43,64 +43,24 @@ class RedshiftConnection(object):
         self.sql_conn.close()
 
 
-class Neo4jConnection:
-
-    def __init__(self, uri, user, pwd):
-        self.__uri = uri
-        self.__user = user
-        self.__pwd = pwd
-        self.__driver = None
-        try:
-            self.__driver = GraphDatabase.driver(self.__uri, auth=(self.__user, self.__pwd))
-        except Exception as e:
-            print("Failed to create the driver:", e)
-
-    def close(self):
-        if self.__driver is not None:
-            self.__driver.close()
-
-    def query(self, query, db=None):
-        assert self.__driver is not None, "Driver not initialized!"
-        session = None
-        response = None
-        try:
-            session = self.__driver.session(database=db) if db is not None else self.__driver.session()
-            response = list(session.run(query))
-        except Exception as e:
-            print("Query failed:", e)
-        finally:
-            if session is not None:
-                session.close()
-        return response
-
-
-class DbNeo4jConnection(object):
-
-    def __enter__(self):
-        # make a database connection and return it
-        self.neo_conn = Neo4jConnection(uri=host_neo4j,
-                                        user=user_neo4j,
-                                        pwd=password_neo4j)
-
-        return self.neo_conn
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        # make sure the dbconnection gets closed
-        self.neo_conn.close()
+def connection_neo4j():
+    neo_conn = py2neo.Graph(host_neo4j,
+                            user=user_neo4j,
+                            password=password_neo4j,
+                            database=dbname_neo4j)
+    return neo_conn
 
 
 def openfile(filepath):
     file_content = open(filepath, 'r')
-    file_content = file_content.read()
-    return file_content
+    return file_content.read()
 
 
-def extract(path_query, db_name=None):
+def extract(path_query):
     extract_query_str = openfile(path_query)
-    with DbNeo4jConnection() as neo_conn:
-        result = neo_conn.query(extract_query_str, db=db_name)
-    df_result = pd.DataFrame([dict(_) for _ in result])
-    return df_result
+    conn = connection_neo4j()
+    result = conn.run(extract_query_str).to_data_frame()
+    return result
 
 
 def create_csv_file(df, aws_access_key, aws_secret_key, bucket, path_file_s3):
@@ -108,8 +68,7 @@ def create_csv_file(df, aws_access_key, aws_secret_key, bucket, path_file_s3):
     csv_buf = StringIO()
     df.to_csv(csv_buf, header=True, index=False)
     csv_buf.seek(0)
-    data = datetime.today()
-    data = data.strftime('%Y%m%d')
+    data = datetime.today().strftime('%Y%m%d')
     filepaths3 = path_file_s3.format(data)
     s3.put_object(Bucket=bucket, Body=csv_buf.getvalue(), Key=filepaths3)
 
